@@ -133,6 +133,8 @@ local function format_timestamp (microsecs)
 	return str
 end
 
+local NUL = _VERSION == "Lua 5.1" and "%z" or "\000"
+
 local function template_string (template, replacements)
 	template = template:gsub("%$%$", "\000") -- $$ -> \000
 	template = template:gsub("%$([%w_]+)", replacements) -- $field
@@ -144,7 +146,7 @@ local function template_string (template, replacements)
 		end
 		return repl
 	end)
-	template = template:gsub("\000", "$") -- \000 -> $
+	template = template:gsub(NUL, "$") -- \000 -> $
 	return template
 end
 
@@ -158,38 +160,31 @@ local function print_nowplaying (player)
 				return
 			end
 
-			-- I don't have the desire to track this down atm but the template system is
-			-- broken in luajit so just bypass it for now...
-			if type(jit) == 'table' then
-				local command = string.format('me is now playing %s by %s', metadata['xesam:title'], metadata['xesam:artist'][1])
-				hexchat.command(command)
-			else
-				local replacements = metadata -- there's no built-in function to make a shallow copy
+			local replacements = metadata -- there's no built-in function to make a shallow copy
 
-				-- aggregate artist and albumArtist fields
-				for _, key in pairs({'artist', 'albumArtist'}) do
-					local source = metadata['xesam:' .. key]
-					if source then
-						replacements[key] = ""
-						for i, item in ipairs(source) do
-							if i ~= 1 then
-								replacements[key] = replacements[key] .. " & "
-							end
-							replacements[key] = replacements[key] .. item
+			-- aggregate artist and albumArtist fields
+			for _, key in pairs({'artist', 'albumArtist'}) do
+				local source = metadata['xesam:' .. key]
+				if source then
+					replacements[key] = ""
+					for i, item in ipairs(source) do
+						if i ~= 1 then
+							replacements[key] = replacements[key] .. " & "
 						end
+						replacements[key] = replacements[key] .. item
 					end
 				end
-				-- formatted timestamps
-				replacements['position'] = format_timestamp(position)
-				replacements['length'] = format_timestamp(metadata['mpris:length'])
-				-- shorthands
-				replacements['title'] = metadata['xesam:title']
-				replacements['album'] = metadata['xesam:album']
-				-- other
-				replacements['player'] = player
-
-				hexchat.command(template_string(COMMAND_TEMPLATE, replacements))
 			end
+			-- formatted timestamps
+			replacements['position'] = format_timestamp(position)
+			replacements['length'] = format_timestamp(metadata['mpris:length'])
+			-- shorthands
+			replacements['title'] = metadata['xesam:title']
+			replacements['album'] = metadata['xesam:album']
+			-- other
+			replacements['player'] = player
+
+			hexchat.command(template_string(COMMAND_TEMPLATE, replacements))
 		end)
 	end)
 end
